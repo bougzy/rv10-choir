@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Choir Member Registration</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            min-height: 100vh;
+            padding-bottom: 50px;
+        }
+
+        .main-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            color: #2d3748;
+            padding: 50px 40px;
+            margin-bottom: 40px;
+            border-radius: 25px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb, #667eea);
+            background-size: 200% 100%;
+            animation: gradientShift 3s ease infinite;
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            color: #718096;
+            margin: 0;
+        }
+
+        .form-section {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .form-section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+        }
+
+        .form-section h3 {
+            font-size: 1.6rem;
+            font-weight: 600;
+            margin-bottom: 30px;
+            color: #2d3748;
+            padding-bottom: 15px;
+            border-bottom: 3px solid;
+            border-image: linear-gradient(90deg, #667eea, #764ba2) 1;
+            display: flex;
+            align-items: center;
+        }
+
+        .form-section h3 i {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-right: 12px;
+        }
+
+        .photo-preview {
+            width: 180px;
+            height: 180px;
+            border: 3px solid transparent;
+            background: linear-gradient(white, white) padding-box,
+                        linear-gradient(135deg, #667eea, #764ba2) border-box;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            margin: 0 auto 20px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .photo-preview:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .photo-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .photo-preview i {
+            color: #cbd5e0;
+            font-size: 4rem;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+
+        .required::after {
+            content: " *";
+            color: #f56565;
+        }
+
+        .form-control, .form-select {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 12px 16px;
+            transition: all 0.3s ease;
+            background: #f7fafc;
+            font-size: 0.95rem;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+            background: white;
+        }
+
+        .form-check-input {
+            width: 1.3em;
+            height: 1.3em;
+            border: 2px solid #cbd5e0;
+            cursor: pointer;
+        }
+
+        .form-check-input:checked {
+            background-color: #667eea;
+            border-color: #667eea;
+        }
+
+        .form-check-label {
+            cursor: pointer;
+            color: #4a5568;
+            margin-left: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 16px 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.5);
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        }
+
+        .btn-outline-secondary {
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 16px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 15px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .btn-outline-secondary:hover {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-color: transparent;
+            color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
+        }
+
+        .modal-content {
+            border-radius: 20px;
+            border: none;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #48bb78, #38a169);
+            border: none;
+            padding: 25px;
+        }
+
+        .modal-body {
+            padding: 40px;
+        }
+
+        .text-muted {
+            color: #a0aec0 !important;
+            font-size: 0.875rem;
+        }
+
+        input[type="file"] {
+            cursor: pointer;
+            padding: 10px;
+        }
+
+        input[type="file"]::file-selector-button {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-right: 15px;
+            transition: all 0.3s ease;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .form-section {
+                padding: 25px;
+            }
+            
+            .btn-primary, .btn-outline-secondary {
+                padding: 14px 30px;
+                font-size: 1rem;
+                width: 100%;
+                margin-bottom: 15px;
+            }
+        }
+
+        .submit-container {
+            text-align: center;
+            margin: 40px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="header">
+            <h1><i class="fas fa-music me-3"></i>Choir Member Registration</h1>
+            <p class="lead">Join our choir community and share your musical journey</p>
+        </div>
+
+        <form id="registrationForm" enctype="multipart/form-data">
+            <div class="form-section">
+                <h3><i class="fas fa-user-circle"></i>Personal Information</h3>
+                
+                <div class="row">
+                    <div class="col-md-4 text-center mb-4 mb-md-0">
+                        <div class="photo-preview" id="photoPreview">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <input type="file" class="form-control" id="photo" name="photo" accept="image/*" required>
+                        <small class="text-muted">Upload your passport photograph</small>
+                    </div>
+                    
+                    <div class="col-md-8">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="fullName" class="form-label required">Full Name</label>
+                                <input type="text" class="form-control" id="fullName" name="fullName" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="gender" class="form-label required">Gender</label>
+                                <select class="form-select" id="gender" name="gender" required>
+                                    <option value="">Select Gender</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="stateOfOrigin" class="form-label required">State of Origin</label>
+                                <input type="text" class="form-control" id="stateOfOrigin" name="stateOfOrigin" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="homeTown" class="form-label required">Home Town</label>
+                                <input type="text" class="form-control" id="homeTown" name="homeTown" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="status" class="form-label required">Marital Status</label>
+                                <select class="form-select" id="status" name="status" required>
+                                    <option value="">Select Status</option>
+                                    <option value="Single">Single</option>
+                                    <option value="Married">Married</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="occupation" class="form-label required">Occupation</label>
+                                <input type="text" class="form-control" id="occupation" name="occupation" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3><i class="fas fa-church"></i>Church Information</h3>
+                
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label for="zone" class="form-label required">Zone</label>
+                        <input type="text" class="form-control" id="zone" name="zone" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="area" class="form-label required">Area</label>
+                        <input type="text" class="form-control" id="area" name="area" required>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="parish" class="form-label required">Parish</label>
+                        <input type="text" class="form-control" id="parish" name="parish" required>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="parishAddress" class="form-label required">Address of Your Parish</label>
+                    <textarea class="form-control" id="parishAddress" name="parishAddress" rows="3" required></textarea>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3><i class="fas fa-music"></i>Choir Information</h3>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="part" class="form-label required">Voice Part</label>
+                        <select class="form-select" id="part" name="part" required>
+                            <option value="">Select Voice Part</option>
+                            <option value="Soprano">Soprano</option>
+                            <option value="Alto">Alto</option>
+                            <option value="Tenor">Tenor</option>
+                            <option value="Bass">Bass</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="joinYear" class="form-label required">Year Joined Province Choir</label>
+                        <select class="form-select" id="joinYear" name="joinYear" required>
+                            <option value="">Select Year</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Do you hold any position?</label>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="position" value="Parish Choir Leader" id="position1">
+                        <label class="form-check-label" for="position1">Parish Choir Leader</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="position" value="Area Leader" id="position2">
+                        <label class="form-check-label" for="position2">Area Leader</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="position" value="Zone Leader" id="position3">
+                        <label class="form-check-label" for="position3">Zone Leader</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3><i class="fas fa-address-card"></i>Contact Information</h3>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="phoneNo" class="form-label required">Phone Number</label>
+                        <input type="tel" class="form-control" id="phoneNo" name="phoneNo" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="residentialAddress" class="form-label required">Residential Address</label>
+                        <textarea class="form-control" id="residentialAddress" name="residentialAddress" rows="3" required></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="submit-container">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-paper-plane me-2"></i>Submit Registration
+                </button>
+                <a href="/admin" class="btn btn-outline-secondary btn-lg ms-md-2">
+                    <i class="fas fa-tachometer-alt me-2"></i>Admin Dashboard
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal fade" id="successModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header text-white">
+                    <h5 class="modal-title"><i class="fas fa-check-circle me-2"></i>Success!</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                    <h4>Registration Successful!</h4>
+                    <p class="text-muted">Your information has been saved successfully.</p>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-success" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Populate years
+        const yearSelect = document.getElementById('joinYear');
+        const currentYear = new Date().getFullYear();
+        for (let year = currentYear; year >= 1990; year--) {
+            const option = document.createElement('option');
+            option.value = year;
+            option.textContent = year;
+            yearSelect.appendChild(option);
+        }
+
+        // Photo preview
+        document.getElementById('photo').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('photoPreview').innerHTML = 
+                        `<img src="${e.target.result}" alt="Preview">`;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Form submission
+        document.getElementById('registrationForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const modal = new bootstrap.Modal(document.getElementById('successModal'));
+            modal.show();
+            
+            setTimeout(() => {
+                this.reset();
+                document.getElementById('photoPreview').innerHTML = 
+                    '<i class="fas fa-user fa-3x"></i>';
+            }, 2000);
+        });
+    </script>
+</body>
+</html>

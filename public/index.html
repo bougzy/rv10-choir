@@ -375,6 +375,8 @@
                     <textarea class="form-control" id="parishAddress" name="parishAddress" rows="3" required></textarea>
                 </div>
             </div>
+            
+                      
 
             <div class="form-section">
                 <h3><i class="fas fa-music"></i>Choir Information</h3>
@@ -411,6 +413,87 @@
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" name="position" value="Zone Leader" id="position3">
                         <label class="form-check-label" for="position3">Zone Leader</label>
+                    </div>
+                </div>
+            </div>
+
+              <!-- NEW SECTION: Musical Instruments -->
+            <div class="form-section">
+                <h3><i class="fas fa-guitar"></i>Musical Instruments</h3>
+                
+                <div class="mb-3">
+                    <label class="form-label">Do you play any musical instruments? (Select all that apply)</label>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="instruments" value="Piano" id="piano">
+                                <label class="form-check-label" for="piano">
+                                    <i class="fas fa-piano-keyboard me-2"></i>Piano
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="instruments" value="Organ" id="organ">
+                                <label class="form-check-label" for="organ">
+                                    <i class="fas fa-music me-2"></i>Organ
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="instruments" value="Guitar" id="guitar">
+                                <label class="form-check-label" for="guitar">
+                                    <i class="fas fa-guitar me-2"></i>Guitar
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="instruments" value="Bass Guitar" id="bassGuitar">
+                                <label class="form-check-label" for="bassGuitar">
+                                    <i class="fas fa-guitar me-2"></i>Bass Guitar
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="instruments" value="Drums" id="drums">
+                                <label class="form-check-label" for="drums">
+                                    <i class="fas fa-drum me-2"></i>Drums
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="instruments" value="Violin" id="violin">
+                                <label class="form-check-label" for="violin">
+                                    <i class="fas fa-violin me-2"></i>Violin
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="instruments" value="Saxophone" id="saxophone">
+                                <label class="form-check-label" for="saxophone">
+                                    <i class="fas fa-trumpet me-2"></i>Saxophone
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="instruments" value="Trumpet" id="trumpet">
+                                <label class="form-check-label" for="trumpet">
+                                    <i class="fas fa-trumpet me-2"></i>Trumpet
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="instruments" value="Flute" id="flute">
+                                <label class="form-check-label" for="flute">
+                                    <i class="fas fa-flute me-2"></i>Flute
+                                </label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="instruments" value="Other" id="otherInstrument">
+                                <label class="form-check-label" for="otherInstrument">
+                                    <i class="fas fa-music me-2"></i>Other (please specify)
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Other instrument input field -->
+                    <div class="mt-3" id="otherInstrumentField" style="display: none;">
+                        <label for="otherInstrumentText" class="form-label">Specify other instrument:</label>
+                        <input type="text" class="form-control" id="otherInstrumentText" name="otherInstrumentText" placeholder="Enter instrument name">
                     </div>
                 </div>
             </div>
@@ -462,42 +545,193 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Populate years
-        const yearSelect = document.getElementById('joinYear');
+   
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    
+    document.addEventListener('DOMContentLoaded', function() {
+    populateYears();
+    setupPhotoPreview();
+    setupInstruments(); // ADD THIS LINE
+    setupFormSubmission();
+});
+
+    // Populate years for join year dropdown
+    function populateYears() {
+        const joinYearSelect = document.getElementById('joinYear');
         const currentYear = new Date().getFullYear();
+        
         for (let year = currentYear; year >= 1990; year--) {
             const option = document.createElement('option');
             option.value = year;
             option.textContent = year;
-            yearSelect.appendChild(option);
+            joinYearSelect.appendChild(option);
         }
+    }
 
-        // Photo preview
-        document.getElementById('photo').addEventListener('change', function(e) {
+    // Setup photo preview
+    function setupPhotoPreview() {
+        const photoInput = document.getElementById('photo');
+        const photoPreview = document.getElementById('photoPreview');
+        
+        photoInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    document.getElementById('photoPreview').innerHTML = 
-                        `<img src="${e.target.result}" alt="Preview">`;
+                    photoPreview.innerHTML = `<img src="${e.target.result}" alt="Preview">`;
                 };
                 reader.readAsDataURL(file);
             }
         });
+    }
 
-        // Form submission
-        document.getElementById('registrationForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const modal = new bootstrap.Modal(document.getElementById('successModal'));
-            modal.show();
+    // Setup form submission - FIXED VERSION
+   
+    // Setup form submission - UPDATED VERSION with instruments handling
+function setupFormSubmission() {
+    const form = document.getElementById('registrationForm');
+    
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const submitButton = form.querySelector('button[type="submit"]');
+        const originalText = submitButton.innerHTML;
+        
+        try {
+            // Show loading state
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
+            submitButton.disabled = true;
             
-            setTimeout(() => {
-                this.reset();
-                document.getElementById('photoPreview').innerHTML = 
-                    '<i class="fas fa-user fa-3x"></i>';
-            }, 2000);
+            // Create FormData object
+            let formData = new FormData(form);
+            
+            // Handle "Other" instrument
+            const otherCheckbox = document.getElementById('otherInstrument');
+            const otherText = document.getElementById('otherInstrumentText').value;
+            
+            if (otherCheckbox.checked && otherText.trim() !== '') {
+                // Remove the generic "Other" and add the specific instrument
+                const instruments = Array.from(form.querySelectorAll('input[name="instruments"]:checked'))
+                    .map(cb => cb.value)
+                    .filter(value => value !== 'Other');
+                
+                instruments.push(otherText);
+                
+                // Create new FormData with updated instruments
+                const newFormData = new FormData();
+                for (let [key, value] of formData) {
+                    if (key !== 'instruments') {
+                        newFormData.append(key, value);
+                    }
+                }
+                
+                instruments.forEach(instrument => {
+                    newFormData.append('instruments', instrument);
+                });
+                
+                formData = newFormData;
+            }
+            
+            console.log('📤 Sending form data to server...');
+            
+            // Send data to server
+            const response = await fetch('/api/members', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log('✅ Form submitted successfully:', result);
+                
+                // Show success modal
+                const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+                successModal.show();
+                
+                // Reset form after successful submission
+                setTimeout(() => {
+                    form.reset();
+                    document.getElementById('photoPreview').innerHTML = '<i class="fas fa-user fa-3x text-muted"></i>';
+                    document.getElementById('otherInstrumentField').style.display = 'none';
+                    console.log('🔄 Form reset completed');
+                }, 2000);
+                
+            } else {
+                throw new Error(result.message || 'Unknown error occurred');
+            }
+            
+        } catch (error) {
+            console.error('❌ Form submission error:', error);
+            alert('Error submitting form: ' + error.message);
+        } finally {
+            // Restore button state
+            submitButton.innerHTML = originalText;
+            submitButton.disabled = false;
+        }
+    });
+}
+
+    // Setup instruments section
+    function setupInstruments() {
+        const otherCheckbox = document.getElementById('otherInstrument');
+        const otherField = document.getElementById('otherInstrumentField');
+        
+        otherCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                otherField.style.display = 'block';
+            } else {
+                otherField.style.display = 'none';
+                document.getElementById('otherInstrumentText').value = '';
+            }
         });
-    </script>
+        
+        // Handle other instrument text in form submission
+        const form = document.getElementById('registrationForm');
+        form.addEventListener('submit', function() {
+            const otherCheckbox = document.getElementById('otherInstrument');
+            const otherText = document.getElementById('otherInstrumentText').value;
+            
+            if (otherCheckbox.checked && otherText.trim() !== '') {
+                // Remove the generic "Other" and add the specific instrument
+                const instruments = Array.from(form.querySelectorAll('input[name="instruments"]:checked'))
+                    .map(cb => cb.value)
+                    .filter(value => value !== 'Other');
+                
+                instruments.push(otherText);
+                
+                // Clear existing instruments and add updated ones
+                const newFormData = new FormData();
+                for (let [key, value] of new FormData(form)) {
+                    if (key !== 'instruments') {
+                        newFormData.append(key, value);
+                    }
+                }
+                
+                instruments.forEach(instrument => {
+                    newFormData.append('instruments', instrument);
+                });
+                
+                return newFormData;
+            }
+        });
+    }
+
+    // Test database connection (optional - for debugging)
+    async function testDatabase() {
+        try {
+            const response = await fetch('/api/test');
+            const result = await response.json();
+            console.log('📊 Database test result:', result);
+        } catch (error) {
+            console.error('❌ Database test failed:', error);
+        }
+    }
+    
+    // Test database on page load
+    document.addEventListener('DOMContentLoaded', testDatabase);
+</script>
+
 </body>
 </html>

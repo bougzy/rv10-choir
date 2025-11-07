@@ -530,167 +530,427 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Sample data for demonstration
-        const sampleMembers = [
-            {
-                id: 1,
-                fullName: "John Doe",
-                gender: "Male",
-                phone: "08012345678",
-                zone: "Zone A",
-                area: "Area 1",
-                parish: "St. Mary's Parish",
-                part: "Tenor",
-                photo: "https://via.placeholder.com/100",
-                joinYear: "2020",
-                occupation: "Engineer"
-            },
-            {
-                id: 2,
-                fullName: "Jane Smith",
-                gender: "Female",
-                phone: "08087654321",
-                zone: "Zone B",
-                area: "Area 2",
-                parish: "St. John's Parish",
-                part: "Soprano",
-                photo: "https://via.placeholder.com/100",
-                joinYear: "2019",
-                occupation: "Teacher"
-            }
-        ];
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let currentPage = 1;
+    const limit = 10;
+    let allMembers = [];
 
-        function loadMembers() {
-            const container = document.getElementById('membersContainer');
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const filterZone = document.getElementById('filterZone').value;
+    document.addEventListener('DOMContentLoaded', function() {
+        loadMembers();
+        loadZones();
+        setupSearch();
+    });
 
-            let filteredMembers = sampleMembers;
+    // Load members with pagination
+    async function loadMembers(page = 1) {
+        try {
+            currentPage = page;
+            const response = await fetch(`/api/members?page=${page}&limit=${limit}`);
+            const data = await response.json();
+            
+            allMembers = data.members;
+            displayMembers(allMembers);
+            displayPagination(data.pagination);
+            updateStats(data.pagination.totalMembers);
+        } catch (error) {
+            console.error('Error loading members:', error);
+            showError('Failed to load members');
+        }
+    }
 
-            if (searchTerm) {
-                filteredMembers = filteredMembers.filter(m => 
-                    m.fullName.toLowerCase().includes(searchTerm) ||
-                    m.phone.includes(searchTerm) ||
-                    m.parish.toLowerCase().includes(searchTerm)
-                );
-            }
-
-            if (filterZone) {
-                filteredMembers = filteredMembers.filter(m => m.zone === filterZone);
-            }
-
-            if (filteredMembers.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-search"></i>
-                        <h3>No Results Found</h3>
-                        <p>Try adjusting your search criteria.</p>
+    // Display members in the dashboard
+    function displayMembers(members) {
+        const container = document.getElementById('membersContainer');
+        
+        if (members.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-users fa-4x text-muted mb-3"></i>
+                    <h3>No Members Found</h3>
+                    <p class="text-muted">No choir members match your search criteria.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = members.map(member => `
+            <div class="member-card">
+                <div class="row align-items-center">
+                    <div class="col-md-2 text-center mb-3 mb-md-0">
+                        ${member.photo ? 
+                            `<img src="/uploads/${member.photo}" class="member-photo" alt="${member.fullName}">` :
+                            `<div class="member-photo bg-light d-flex align-items-center justify-content-center rounded-circle">
+                                <i class="fas fa-user text-muted fa-2x"></i>
+                            </div>`
+                        }
                     </div>
-                `;
-                return;
-            }
-
-            container.innerHTML = filteredMembers.map(member => `
-                <div class="member-card">
-                    <div class="row align-items-center">
-                        <div class="col-md-2 text-center mb-3 mb-md-0">
-                            <img src="${member.photo}" alt="${member.fullName}" class="member-photo">
-                        </div>
-                        <div class="col-md-7">
-                            <div class="member-info">
-                                <h5>${member.fullName}</h5>
-                                <p><i class="fas fa-phone"></i>${member.phone}</p>
-                                <p><i class="fas fa-church"></i>${member.parish}</p>
-                                <p><i class="fas fa-map-marker-alt"></i>${member.zone} - ${member.area}</p>
+                    <div class="col-md-6">
+                        <div class="member-info">
+                            <h5>${member.fullName}</h5>
+                            <p><i class="fas fa-phone"></i>${member.phoneNo}</p>
+                            <p><i class="fas fa-church"></i>${member.parish}</p>
+                            <p><i class="fas fa-map-marker-alt"></i>${member.zone} - ${member.area}</p>
+                            <p><i class="fas fa-music"></i>${member.part} • Joined: ${member.joinYear}</p>
+                            <div class="mt-2">
+                                ${member.position && member.position.length > 0 ? 
+                                    member.position.map(pos => `<span class="badge badge-primary me-1">${pos}</span>`).join('') : 
+                                    '<span class="badge badge-secondary">No Position</span>'
+                                }
+                                ${member.instruments && member.instruments.length > 0 ? 
+                                    member.instruments.map(instr => `<span class="badge badge-success me-1">${instr}</span>`).join('') : 
+                                    ''
+                                }
                             </div>
                         </div>
-                        <div class="col-md-3 text-md-end">
-                            <span class="badge badge-primary">${member.part}</span>
-                            <span class="badge badge-info">${member.joinYear}</span>
-                            <button class="btn btn-sm btn-outline-primary mt-2" onclick="viewMember(${member.id})">
-                                <i class="fas fa-eye me-1"></i>View Details
-                            </button>
-                        </div>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        <button class="btn btn-outline-primary btn-sm mb-1" onclick="viewMemberDetails('${member._id}')">
+                            <i class="fas fa-eye me-1"></i>View
+                        </button>
+                        <button class="btn btn-outline-warning btn-sm mb-1" onclick="editMember('${member._id}')">
+                            <i class="fas fa-edit me-1"></i>Edit
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm mb-1" onclick="deleteMember('${member._id}')">
+                            <i class="fas fa-trash me-1"></i>Delete
+                        </button>
+                        <button class="btn btn-outline-info btn-sm" onclick="printMember('${member._id}')">
+                            <i class="fas fa-print me-1"></i>Print
+                        </button>
                     </div>
                 </div>
-            `).join('');
+            </div>
+        `).join('');
+    }
 
-            // Update stats
-            document.getElementById('totalMembers').textContent = sampleMembers.length;
-            document.getElementById('activeMembers').textContent = sampleMembers.filter(m => m.joinYear === '2024').length;
-            document.getElementById('totalParishes').textContent = new Set(sampleMembers.map(m => m.parish)).size;
-            document.getElementById('totalZones').textContent = new Set(sampleMembers.map(m => m.zone)).size;
+    // Display pagination
+    function displayPagination(pagination) {
+        const paginationContainer = document.getElementById('pagination');
+        
+        if (pagination.totalPages <= 1) {
+            paginationContainer.innerHTML = '';
+            return;
         }
+        
+        let paginationHTML = `
+            <ul class="pagination justify-content-center">
+        `;
+        
+        // Previous button
+        if (pagination.hasPrev) {
+            paginationHTML += `
+                <li class="page-item">
+                    <a class="page-link" href="#" onclick="loadMembers(${pagination.currentPage - 1})">
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </a>
+                </li>
+            `;
+        }
+        
+        // Page numbers
+        const maxPages = 5;
+        let startPage = Math.max(1, pagination.currentPage - Math.floor(maxPages / 2));
+        let endPage = Math.min(pagination.totalPages, startPage + maxPages - 1);
+        
+        if (endPage - startPage + 1 < maxPages) {
+            startPage = Math.max(1, endPage - maxPages + 1);
+        }
+        
+        for (let i = startPage; i <= endPage; i++) {
+            paginationHTML += `
+                <li class="page-item ${i === pagination.currentPage ? 'active' : ''}">
+                    <a class="page-link" href="#" onclick="loadMembers(${i})">${i}</a>
+                </li>
+            `;
+        }
+        
+        // Next button
+        if (pagination.hasNext) {
+            paginationHTML += `
+                <li class="page-item">
+                    <a class="page-link" href="#" onclick="loadMembers(${pagination.currentPage + 1})">
+                        Next <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+            `;
+        }
+        
+        paginationHTML += `</ul>`;
+        paginationContainer.innerHTML = paginationHTML;
+    }
 
-        function searchMembers() {
+    // Update statistics
+    async function updateStats(totalMembers) {
+        try {
+            document.getElementById('totalMembers').textContent = totalMembers;
+            
+            const currentYear = new Date().getFullYear();
+            const response = await fetch('/api/members?limit=1000');
+            const data = await response.json();
+            const members = data.members;
+            
+            const currentYearMembers = members.filter(m => m.joinYear == currentYear).length;
+            document.getElementById('activeMembers').textContent = currentYearMembers;
+            
+            const uniqueParishes = [...new Set(members.map(m => m.parish))].length;
+            document.getElementById('totalParishes').textContent = uniqueParishes;
+            
+            const uniqueZones = [...new Set(members.map(m => m.zone))].length;
+            document.getElementById('totalZones').textContent = uniqueZones;
+        } catch (error) {
+            console.error('Error updating stats:', error);
+        }
+    }
+
+    // Load zones for filter
+    async function loadZones() {
+        try {
+            const response = await fetch('/api/zones');
+            const zones = await response.json();
+            const filterZone = document.getElementById('filterZone');
+            
+            zones.forEach(zone => {
+                const option = document.createElement('option');
+                option.value = zone;
+                option.textContent = zone;
+                filterZone.appendChild(option);
+            });
+        } catch (error) {
+            console.error('Error loading zones:', error);
+        }
+    }
+
+    // Search functionality
+    function setupSearch() {
+        const searchInput = document.getElementById('searchInput');
+        let searchTimeout;
+        
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(searchMembers, 500);
+        });
+    }
+
+    async function searchMembers() {
+        const searchTerm = document.getElementById('searchInput').value.trim();
+        const filterZone = document.getElementById('filterZone').value;
+        
+        if (searchTerm === '' && filterZone === '') {
             loadMembers();
+            return;
         }
+        
+        try {
+            let members = allMembers;
+            
+            // Apply zone filter
+            if (filterZone) {
+                members = members.filter(m => m.zone === filterZone);
+            }
+            
+            // Apply search term
+            if (searchTerm) {
+                const searchLower = searchTerm.toLowerCase();
+                members = members.filter(m => 
+                    m.fullName.toLowerCase().includes(searchLower) ||
+                    m.phoneNo.includes(searchTerm) ||
+                    m.parish.toLowerCase().includes(searchLower) ||
+                    m.zone.toLowerCase().includes(searchLower) ||
+                    m.area.toLowerCase().includes(searchLower)
+                );
+            }
+            
+            displayMembers(members);
+            
+            // Hide pagination during filtered search
+            document.getElementById('pagination').innerHTML = '';
+        } catch (error) {
+            console.error('Error searching members:', error);
+        }
+    }
 
-        function viewMember(id) {
-            const member = sampleMembers.find(m => m.id === id);
-            if (member) {
-                document.getElementById('memberDetails').innerHTML = `
+    // View member details
+    async function viewMemberDetails(memberId) {
+        try {
+            const response = await fetch(`/api/members/${memberId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const member = data.member;
+                const modalBody = document.getElementById('memberDetails');
+                modalBody.innerHTML = `
                     <div class="text-center mb-4">
-                        <img src="${member.photo}" alt="${member.fullName}" style="width: 150px; height: 150px; border-radius: 50%; border: 4px solid #667eea;">
+                        ${member.photo ? 
+                            `<img src="/uploads/${member.photo}" style="width: 200px; height: 200px; border-radius: 50%; border: 4px solid #667eea; object-fit: cover;" alt="${member.fullName}">` :
+                            `<div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 200px; height: 200px; border: 4px solid #667eea;">
+                                <i class="fas fa-user fa-4x text-muted"></i>
+                            </div>`
+                        }
+                        <h4 class="mt-3">${member.fullName}</h4>
+                        <p class="text-muted">${member.occupation}</p>
                     </div>
-                    <div class="detail-row">
-                        <div class="detail-label">Full Name</div>
-                        <div class="detail-value">${member.fullName}</div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5><i class="fas fa-user-circle me-2"></i>Personal Information</h5>
+                            <div class="detail-row">
+                                <div class="detail-label">Full Name</div>
+                                <div class="detail-value">${member.fullName}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Gender</div>
+                                <div class="detail-value">${member.gender}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Marital Status</div>
+                                <div class="detail-value">${member.status}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">State of Origin</div>
+                                <div class="detail-value">${member.stateOfOrigin}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Home Town</div>
+                                <div class="detail-value">${member.homeTown}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Occupation</div>
+                                <div class="detail-value">${member.occupation}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <h5><i class="fas fa-church me-2"></i>Church Information</h5>
+                            <div class="detail-row">
+                                <div class="detail-label">Zone</div>
+                                <div class="detail-value">${member.zone}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Area</div>
+                                <div class="detail-value">${member.area}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Parish</div>
+                                <div class="detail-value">${member.parish}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Parish Address</div>
+                                <div class="detail-value">${member.parishAddress}</div>
+                            </div>
+                            
+                            <h5 class="mt-4"><i class="fas fa-music me-2"></i>Choir Information</h5>
+                            <div class="detail-row">
+                                <div class="detail-label">Voice Part</div>
+                                <div class="detail-value">${member.part}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Year Joined</div>
+                                <div class="detail-value">${member.joinYear}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Positions</div>
+                                <div class="detail-value">${member.position && member.position.length > 0 ? member.position.join(', ') : 'None'}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Instruments</div>
+                                <div class="detail-value">${member.instruments && member.instruments.length > 0 ? member.instruments.join(', ') : 'None'}</div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="detail-row">
-                        <div class="detail-label">Gender</div>
-                        <div class="detail-value">${member.gender}</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">Phone Number</div>
-                        <div class="detail-value">${member.phone}</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">Occupation</div>
-                        <div class="detail-value">${member.occupation}</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">Parish</div>
-                        <div class="detail-value">${member.parish}</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">Zone / Area</div>
-                        <div class="detail-value">${member.zone} - ${member.area}</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">Voice Part</div>
-                        <div class="detail-value">${member.part}</div>
-                    </div>
-                    <div class="detail-row">
-                        <div class="detail-label">Year Joined</div>
-                        <div class="detail-value">${member.joinYear}</div>
+                    
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h5><i class="fas fa-address-card me-2"></i>Contact Information</h5>
+                            <div class="detail-row">
+                                <div class="detail-label">Phone Number</div>
+                                <div class="detail-value">${member.phoneNo}</div>
+                            </div>
+                            <div class="detail-row">
+                                <div class="detail-label">Residential Address</div>
+                                <div class="detail-value">${member.residentialAddress}</div>
+                            </div>
+                        </div>
                     </div>
                 `;
+                
                 const modal = new bootstrap.Modal(document.getElementById('memberModal'));
                 modal.show();
             }
+        } catch (error) {
+            console.error('Error loading member details:', error);
+            showError('Failed to load member details');
         }
+    }
 
-        // Populate zone filter
-        const zones = [...new Set(sampleMembers.map(m => m.zone))];
-        const filterZone = document.getElementById('filterZone');
-        zones.forEach(zone => {
-            const option = document.createElement('option');
-            option.value = zone;
-            option.textContent = zone;
-            filterZone.appendChild(option);
-        });
-
-        // Initial load
-        loadMembers();
-
-        // Search on Enter key
-        document.getElementById('searchInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                searchMembers();
+    // Edit member
+    async function editMember(memberId) {
+        try {
+            const response = await fetch(`/api/members/${memberId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                // Redirect to edit page or open edit modal
+                // For now, we'll just show an alert with instructions
+                alert(`Edit functionality for ${data.member.fullName} would open here.\n\nIn a full implementation, this would open a pre-filled form for editing.`);
             }
-        });
-    </script>
+        } catch (error) {
+            console.error('Error loading member for edit:', error);
+            showError('Failed to load member for editing');
+        }
+    }
+
+    // Delete member
+    async function deleteMember(memberId) {
+        if (!confirm('Are you sure you want to delete this member? This action cannot be undone.')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch(`/api/members/${memberId}`, {
+                method: 'DELETE'
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showSuccess('Member deleted successfully!');
+                loadMembers(currentPage);
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error) {
+            console.error('Error deleting member:', error);
+            showError('Failed to delete member: ' + error.message);
+        }
+    }
+
+    // Print member
+    function printMember(memberId) {
+        // Open member details in a new window for printing
+        window.open(`/api/members/${memberId}?print=true`, '_blank');
+    }
+
+    // Utility functions
+    function showSuccess(message) {
+        alert('✅ ' + message); // In a real app, use a toast notification
+    }
+
+    function showError(message) {
+        alert('❌ ' + message); // In a real app, use a toast notification
+    }
+
+    // Filter by zone
+    function filterByZone() {
+        searchMembers();
+    }
+
+    // Search on Enter key
+    document.getElementById('searchInput').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            searchMembers();
+        }
+    });
+</script>
 </body>
 </html>

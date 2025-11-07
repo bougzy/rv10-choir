@@ -425,6 +425,50 @@
         .container {
             padding: 0 20px;
         }
+
+        .table-responsive {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.table th {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    padding: 12px 15px;
+    font-weight: 600;
+}
+
+.table td {
+    padding: 12px 15px;
+    vertical-align: middle;
+    border-color: #e2e8f0;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: rgba(102, 126, 234, 0.05);
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(102, 126, 234, 0.1);
+    transform: translateX(5px);
+    transition: all 0.3s ease;
+}
+
+.modal-xl {
+    max-width: 95%;
+}
+
+@media (max-width: 768px) {
+    .table-responsive {
+        font-size: 0.875rem;
+    }
+    
+    .table th,
+    .table td {
+        padding: 8px 10px;
+    }
+}
     </style>
 </head>
 <body>
@@ -435,7 +479,7 @@
                     <h1><i class="fas fa-tachometer-alt me-3"></i>Admin Dashboard</h1>
                     <p class="lead">Manage Choir Members</p>
                 </div>
-                <div class="col-md-6 text-md-end no-print">
+                <!-- <div class="col-md-6 text-md-end no-print">
                     <a href="/" class="btn btn-light btn-lg">
                         <i class="fas fa-plus me-2"></i>New Registration
                     </a>
@@ -443,7 +487,21 @@
                         <i class="fas fa-print me-2"></i>Print
                     </button>
                 </div>
-            </div>
+            </div> -->
+            <div class="col-md-6 text-md-end no-print">
+    <a href="/" class="btn btn-light btn-lg">
+        <i class="fas fa-plus me-2"></i>New Registration
+    </a>
+    <button onclick="viewAllMembers()" class="btn btn-outline-light btn-lg ms-md-2">
+        <i class="fas fa-list me-2"></i>View All
+    </button>
+    <button onclick="exportToPDF()" class="btn btn-outline-light btn-lg ms-md-2">
+        <i class="fas fa-file-pdf me-2"></i>PDF
+    </button>
+    <button onclick="exportToCSV()" class="btn btn-outline-light btn-lg ms-md-2">
+        <i class="fas fa-file-excel me-2"></i>Excel
+    </button>
+</div>
         </div>
     </div>
 
@@ -528,6 +586,56 @@
             </div>
         </div>
     </div>
+
+    <!-- View All Members Modal -->
+<div class="modal fade" id="viewAllModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-users me-2"></i>All Choir Members</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <span class="text-muted" id="totalMembersCount">Loading...</span>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary" onclick="printAllMembers()">
+                            <i class="fas fa-print me-1"></i>Print
+                        </button>
+                        <button class="btn btn-sm btn-outline-success ms-2" onclick="exportToPDF()">
+                            <i class="fas fa-file-pdf me-1"></i>PDF
+                        </button>
+                        <button class="btn btn-sm btn-outline-info ms-2" onclick="exportToCSV()">
+                            <i class="fas fa-file-excel me-1"></i>Excel
+                        </button>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover" id="allMembersTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>#</th>
+                                <th>Full Name</th>
+                                <th>Phone</th>
+                                <th>Zone</th>
+                                <th>Area</th>
+                                <th>Parish</th>
+                                <th>Voice Part</th>
+                                <th>Year Joined</th>
+                                <th>Gender</th>
+                                <th>Occupation</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="allMembersTableBody">
+                            <!-- Table rows will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -951,6 +1059,142 @@
             searchMembers();
         }
     });
+
+    // View all members in table format with serial numbers
+async function viewAllMembers() {
+    try {
+        const response = await fetch('/api/members/all');
+        const data = await response.json();
+        
+        if (data.success) {
+            const members = data.members;
+            const tableBody = document.getElementById('allMembersTableBody');
+            const totalCount = document.getElementById('totalMembersCount');
+            
+            totalCount.textContent = `Total Members: ${members.length}`;
+            
+            tableBody.innerHTML = members.map((member, index) => `
+                <tr>
+                    <td><strong>${index + 1}</strong></td>
+                    <td><strong>${member.fullName}</strong></td>
+                    <td>${member.phoneNo}</td>
+                    <td>${member.zone}</td>
+                    <td>${member.area}</td>
+                    <td>${member.parish}</td>
+                    <td><span class="badge badge-primary">${member.part}</span></td>
+                    <td>${member.joinYear}</td>
+                    <td>${member.gender}</td>
+                    <td>${member.occupation}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="viewMemberDetails('${member._id}')" title="View Details">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning mx-1" onclick="editMember('${member._id}')" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteMember('${member._id}')" title="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            const modal = new bootstrap.Modal(document.getElementById('viewAllModal'));
+            modal.show();
+        }
+    } catch (error) {
+        console.error('Error loading all members:', error);
+        showError('Failed to load all members');
+    }
+}
+
+// Print all members in table format
+function printAllMembers() {
+    const printWindow = window.open('', '_blank');
+    const membersTable = document.getElementById('allMembersTable').cloneNode(true);
+    
+    // Remove action buttons from print version
+    const actionCells = membersTable.querySelectorAll('td:last-child');
+    actionCells.forEach(cell => cell.remove());
+    
+    printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Choir Members Report</title>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    margin: 20px; 
+                    line-height: 1.6;
+                }
+                .header { 
+                    text-align: center; 
+                    margin-bottom: 30px; 
+                    border-bottom: 2px solid #333; 
+                    padding-bottom: 20px; 
+                }
+                .header h1 { 
+                    color: #333; 
+                    margin: 0; 
+                    font-size: 24px;
+                }
+                .header p { 
+                    color: #666; 
+                    margin: 5px 0; 
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin: 20px 0;
+                    font-size: 14px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 10px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #667eea;
+                    color: white;
+                    font-weight: bold;
+                }
+                tr:nth-child(even) {
+                    background-color: #f9f9f9;
+                }
+                .badge {
+                    background: #667eea;
+                    color: white;
+                    padding: 4px 8px;
+                    border-radius: 12px;
+                    font-size: 12px;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>CHOIR MEMBERS REPORT</h1>
+                <p>Generated on: ${new Date().toLocaleDateString()}</p>
+                <p>Total Members: ${document.getElementById('allMembersTableBody').children.length}</p>
+            </div>
+            ${membersTable.outerHTML}
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.print();
+}
+
+// Export to PDF
+function exportToPDF() {
+    window.open('/api/members/export/pdf', '_blank');
+}
+
+// Export to CSV (Excel)
+function exportToCSV() {
+    window.open('/api/members/export/csv', '_blank');
+}
 </script>
 </body>
 </html>

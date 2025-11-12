@@ -5,6 +5,7 @@ const path = require('path');
 const cors = require('cors');
 const fs = require('fs');
 const PDFDocument = require('pdfkit');
+const csv = require('csv-writer').createObjectCsvStringifier;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,9 +15,15 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
-app.use('/uploads', express.static('uploads'));
 
-// MongoDB connection with better error handling
+// Enhanced static file serving for uploads
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  maxAge: '30d',
+  etag: true,
+  lastModified: true
+}));
+
+// MongoDB connection
 mongoose.connect('mongodb+srv://rtc:rtc@rtc.hiogp8h.mongodb.net/rtc', {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -24,7 +31,7 @@ mongoose.connect('mongodb+srv://rtc:rtc@rtc.hiogp8h.mongodb.net/rtc', {
 .then(() => console.log('✅ MongoDB connected successfully'))
 .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// Member Schema - UPDATED with instruments field
+// Member Schema
 const memberSchema = new mongoose.Schema({
   photo: String,
   stateOfOrigin: String,
@@ -48,13 +55,20 @@ const memberSchema = new mongoose.Schema({
 
 const Member = mongoose.model('Member', memberSchema);
 
-// Multer configuration for file uploads
+// Enhanced Multer configuration
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'uploads/')
+    const uploadDir = 'uploads/';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+      console.log('📁 Created uploads directory');
+    }
+    cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname)
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const fileExtension = path.extname(file.originalname);
+    cb(null, 'member-' + uniqueSuffix + fileExtension);
   }
 });
 
@@ -73,39 +87,39 @@ const upload = multer({
 });
 
 // Routes
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
-});
-
-// API Routes - Enhanced with better logging
+// Create member
 app.post('/api/members', upload.single('photo'), async (req, res) => {
   console.log('📥 Received form submission:', req.body);
   console.log('📁 File received:', req.file);
   
   try {
+    let photoFilename = '';
+    
+    if (req.file) {
+      photoFilename = req.file.filename;
+      console.log('✅ File saved as:', photoFilename);
+    }
+
     const memberData = {
       ...req.body,
-      photo: req.file ? req.file.filename : ''
+      photo: photoFilename
     };
 
-    // Convert position to array if it's a string or handle multiple checkboxes
+    // Convert position to array
     if (typeof memberData.position === 'string') {
       memberData.position = [memberData.position];
     } else if (Array.isArray(memberData.position)) {
-      // Already an array, keep as is
+      // Already an array
     } else {
       memberData.position = [];
     }
 
-    // Convert instruments to array if it's a string or handle multiple checkboxes
+    // Convert instruments to array
     if (typeof memberData.instruments === 'string') {
       memberData.instruments = [memberData.instruments];
     } else if (Array.isArray(memberData.instruments)) {
-      // Already an array, keep as is
+      // Already an array
     } else {
       memberData.instruments = [];
     }
@@ -120,10 +134,16 @@ app.post('/api/members', upload.single('photo'), async (req, res) => {
     res.json({ 
       success: true, 
       message: 'Member registered successfully!',
-      memberId: savedMember._id 
+      memberId: savedMember._id,
+      photoUrl: photoFilename ? `/uploads/${photoFilename}` : null
     });
   } catch (error) {
     console.error('❌ Error saving member:', error);
+    
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
     res.status(500).json({ 
       success: false, 
       message: 'Failed to save member: ' + error.message 
@@ -131,73 +151,145 @@ app.post('/api/members', upload.single('photo'), async (req, res) => {
   }
 });
 
-// NEW: Get single member by ID
-app.get('/api/members/:id', async (req, res) => {
+// Get members with pagination
+app.get('/api/members', async (req, res) => {
   try {
-    const member = await Member.findById(req.params.id);
-    if (!member) {
-      return res.status(404).json({ success: false, message: 'Member not found' });
-    }
-    res.json({ success: true, member });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
 
-// NEW: Update member
-app.put('/api/members/:id', upload.single('photo'), async (req, res) => {
-  try {
-    const memberId = req.params.id;
-    const updateData = { ...req.body };
+    const members = await Member.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
 
-    // Handle array fields
-    if (typeof updateData.position === 'string') {
-      updateData.position = [updateData.position];
-    } else if (!Array.isArray(updateData.position)) {
-      updateData.position = [];
-    }
+    const membersWithImageUrls = members.map(member => ({
+      ...member.toObject(),
+      photoUrl: member.photo ? `/uploads/${member.photo}` : null
+    }));
 
-    if (typeof updateData.instruments === 'string') {
-      updateData.instruments = [updateData.instruments];
-    } else if (!Array.isArray(updateData.instruments)) {
-      updateData.instruments = [];
-    }
+    const total = await Member.countDocuments();
+    const totalPages = Math.ceil(total / limit);
 
-    // Handle photo update
-    if (req.file) {
-      updateData.photo = req.file.filename;
-      
-      // Delete old photo if exists
-      const oldMember = await Member.findById(memberId);
-      if (oldMember.photo) {
-        const oldPhotoPath = path.join(__dirname, 'uploads', oldMember.photo);
-        if (fs.existsSync(oldPhotoPath)) {
-          fs.unlinkSync(oldPhotoPath);
-        }
+    res.json({
+      members: membersWithImageUrls,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalMembers: total,
+        hasNext: page < totalPages,
+        hasPrev: page > 1
       }
-    }
-
-    const updatedMember = await Member.findByIdAndUpdate(
-      memberId, 
-      updateData, 
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedMember) {
-      return res.status(404).json({ success: false, message: 'Member not found' });
-    }
-
-    res.json({ 
-      success: true, 
-      message: 'Member updated successfully!',
-      member: updatedMember 
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// NEW: Delete member
+// Get single member
+app.get('/api/members/:id', async (req, res) => {
+  try {
+    const member = await Member.findById(req.params.id);
+    if (!member) {
+      return res.status(404).json({ success: false, message: 'Member not found' });
+    }
+    
+    const memberWithPhotoUrl = {
+      ...member.toObject(),
+      photoUrl: member.photo ? `/uploads/${member.photo}` : null
+    };
+    
+    res.json({ success: true, member: memberWithPhotoUrl });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Update member
+app.put('/api/members/:id', upload.single('photo'), async (req, res) => {
+  try {
+    console.log('🔄 Updating member:', req.params.id);
+    console.log('📥 Update data:', req.body);
+    console.log('📁 Update file:', req.file);
+
+    const memberId = req.params.id;
+    const existingMember = await Member.findById(memberId);
+    
+    if (!existingMember) {
+      return res.status(404).json({ success: false, message: 'Member not found' });
+    }
+
+    let photoFilename = existingMember.photo;
+
+    // Handle new photo upload
+    if (req.file) {
+      // Delete old photo if it exists
+      if (existingMember.photo) {
+        const oldPhotoPath = path.join(__dirname, 'uploads', existingMember.photo);
+        if (fs.existsSync(oldPhotoPath)) {
+          fs.unlinkSync(oldPhotoPath);
+          console.log('🗑️ Deleted old photo:', existingMember.photo);
+        }
+      }
+      photoFilename = req.file.filename;
+      console.log('✅ New photo saved as:', photoFilename);
+    }
+
+    // Prepare update data
+    const updateData = {
+      ...req.body,
+      photo: photoFilename
+    };
+
+    // Convert position to array
+    if (typeof updateData.position === 'string') {
+      updateData.position = [updateData.position];
+    } else if (Array.isArray(updateData.position)) {
+      // Already an array
+    } else {
+      updateData.position = [];
+    }
+
+    // Convert instruments to array
+    if (typeof updateData.instruments === 'string') {
+      updateData.instruments = [updateData.instruments];
+    } else if (Array.isArray(updateData.instruments)) {
+      // Already an array
+    } else {
+      updateData.instruments = [];
+    }
+
+    // Update member in database
+    const updatedMember = await Member.findByIdAndUpdate(
+      memberId,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    console.log('✅ Member updated successfully:', updatedMember._id);
+
+    res.json({
+      success: true,
+      message: 'Member updated successfully!',
+      member: updatedMember,
+      photoUrl: photoFilename ? `/uploads/${photoFilename}` : null
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating member:', error);
+    
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update member: ' + error.message
+    });
+  }
+});
+
+// Delete member
 app.delete('/api/members/:id', async (req, res) => {
   try {
     const memberId = req.params.id;
@@ -207,333 +299,433 @@ app.delete('/api/members/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Member not found' });
     }
 
-    // Delete photo file if exists
+    // Delete photo file if it exists
     if (member.photo) {
       const photoPath = path.join(__dirname, 'uploads', member.photo);
       if (fs.existsSync(photoPath)) {
         fs.unlinkSync(photoPath);
+        console.log('🗑️ Deleted member photo:', member.photo);
       }
     }
 
     await Member.findByIdAndDelete(memberId);
     
-    res.json({ 
-      success: true, 
-      message: 'Member deleted successfully!' 
+    res.json({
+      success: true,
+      message: 'Member deleted successfully!'
+    });
+  } catch (error) {
+    console.error('❌ Error deleting member:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete member: ' + error.message
+    });
+  }
+});
+
+// Get all members without pagination
+app.get('/api/members/all', async (req, res) => {
+  try {
+    const members = await Member.find().sort({ fullName: 1 });
+    
+    const membersWithImageUrls = members.map(member => ({
+      ...member.toObject(),
+      photoUrl: member.photo ? `/uploads/${member.photo}` : null
+    }));
+
+    res.json({
+      success: true,
+      members: membersWithImageUrls,
+      total: members.length
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// Get all members with pagination
-app.get('/api/members', async (req, res) => {
+// Get unique zones
+app.get('/api/zones', async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-
-    const members = await Member.find()
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Member.countDocuments();
-    const totalPages = Math.ceil(total / limit);
-
-    res.json({
-      members,
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalMembers: total,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
-    });
+    const zones = await Member.distinct('zone');
+    res.json(zones.filter(zone => zone && zone.trim() !== ''));
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
 // Search members
-app.get('/api/members/search', async (req, res) => {
+app.get('/api/members/search/:query', async (req, res) => {
   try {
-    const searchTerm = req.query.term;
+    const query = req.params.query;
     const members = await Member.find({
       $or: [
-        { fullName: { $regex: searchTerm, $options: 'i' } },
-        { phoneNo: { $regex: searchTerm, $options: 'i' } },
-        { parish: { $regex: searchTerm, $options: 'i' } },
-        { zone: { $regex: searchTerm, $options: 'i' } },
-        { area: { $regex: searchTerm, $options: 'i' } }
+        { fullName: { $regex: query, $options: 'i' } },
+        { phoneNo: { $regex: query, $options: 'i' } },
+        { parish: { $regex: query, $options: 'i' } },
+        { zone: { $regex: query, $options: 'i' } }
       ]
-    }).limit(50);
+    }).sort({ createdAt: -1 });
 
-    res.json(members);
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// Get all unique zones for filter
-app.get('/api/zones', async (req, res) => {
-  try {
-    const zones = await Member.distinct('zone');
-    res.json(zones.filter(zone => zone)); // Remove null/empty values
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// Test route to check database connection and existing data
-app.get('/api/test', async (req, res) => {
-  try {
-    const count = await Member.countDocuments();
-    const members = await Member.find().limit(5);
-    
     res.json({
       success: true,
-      message: 'Database connection successful',
-      totalMembers: count,
-      sampleMembers: members
+      members: members,
+      total: members.length
     });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Database error: ' + error.message
-    });
-  }
-});
-
-
-// NEW: Get all members without pagination (for export/print)
-app.get('/api/members/all', async (req, res) => {
-  try {
-    const members = await Member.find().sort({ fullName: 1 });
-    res.json({ success: true, members });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-
-
-// NEW: Generate PDF report
+// Enhanced PDF Export with images and complete details
 app.get('/api/members/export/pdf', async (req, res) => {
   try {
     const members = await Member.find().sort({ fullName: 1 });
     
     const doc = new PDFDocument({ margin: 50 });
-    
-    // Set response headers
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename=choir-members-report.pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=choir-members-complete.pdf');
     
     doc.pipe(res);
     
-    // Add title
-    doc.fontSize(20).font('Helvetica-Bold').text('CHOIR MEMBERS REPORT', 50, 50);
-    doc.fontSize(12).font('Helvetica').text(`Generated on: ${new Date().toLocaleDateString()}`, 50, 80);
-    doc.fontSize(12).text(`Total Members: ${members.length}`, 50, 95);
+    // Title Page
+    doc.fontSize(24).font('Helvetica-Bold')
+       .fillColor('#2d3748')
+       .text('CHOIR MEMBERS DIRECTORY', { align: 'center' });
     
-    let yPosition = 130;
+    doc.moveDown(2);
+    doc.fontSize(16).font('Helvetica')
+       .fillColor('#718096')
+       .text(`Total Members: ${members.length}`, { align: 'center' });
+    
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, { align: 'center' });
+    
+    doc.addPage();
+    
+    // Table of Contents
+    doc.fontSize(20).font('Helvetica-Bold')
+       .fillColor('#2d3748')
+       .text('TABLE OF CONTENTS', { align: 'center' });
+    
+    doc.moveDown();
+    doc.fontSize(12).font('Helvetica')
+       .fillColor('#4a5568');
     
     members.forEach((member, index) => {
-      // Check if we need a new page
-      if (yPosition > 700) {
-        doc.addPage();
-        yPosition = 50;
+      const pageNumber = Math.floor(index / 2) + 3; // Calculate page number
+      doc.text(`${index + 1}. ${member.fullName}`, { continued: true })
+         .text(`............. ${pageNumber}`, { align: 'right' });
+    });
+    
+    // Process members in batches of 2 per page
+    for (let i = 0; i < members.length; i += 2) {
+      if (i > 0) doc.addPage();
+      
+      const member1 = members[i];
+      const member2 = members[i + 1];
+      
+      // Member 1
+      if (member1) {
+        await addMemberToPDF(doc, member1, i + 1);
+        doc.moveDown();
       }
       
-      // Member header
-      doc.fontSize(14).font('Helvetica-Bold').text(`${index + 1}. ${member.fullName}`, 50, yPosition);
-      yPosition += 25;
-      
-      // Member details
-      doc.fontSize(10).font('Helvetica');
-      doc.text(`Phone: ${member.phoneNo}`, 50, yPosition);
-      doc.text(`Zone: ${member.zone}`, 200, yPosition);
-      doc.text(`Area: ${member.area}`, 350, yPosition);
-      yPosition += 15;
-      
-      doc.text(`Parish: ${member.parish}`, 50, yPosition);
-      doc.text(`Voice Part: ${member.part}`, 200, yPosition);
-      doc.text(`Joined: ${member.joinYear}`, 350, yPosition);
-      yPosition += 15;
-      
-      doc.text(`Occupation: ${member.occupation}`, 50, yPosition);
-      doc.text(`Gender: ${member.gender}`, 200, yPosition);
-      doc.text(`Status: ${member.status}`, 350, yPosition);
-      yPosition += 15;
-      
-      if (member.position && member.position.length > 0) {
-        doc.text(`Positions: ${member.position.join(', ')}`, 50, yPosition);
-        yPosition += 15;
+      // Page break between members
+      if (member1 && member2) {
+        doc.moveTo(50, doc.y)
+           .lineTo(545, doc.y)
+           .strokeColor('#e2e8f0')
+           .lineWidth(1)
+           .stroke();
+        doc.moveDown();
       }
       
-      if (member.instruments && member.instruments.length > 0) {
-        doc.text(`Instruments: ${member.instruments.join(', ')}`, 50, yPosition);
-        yPosition += 15;
+      // Member 2
+      if (member2) {
+        await addMemberToPDF(doc, member2, i + 2);
       }
-      
-      yPosition += 10; // Space between members
+    }
+    
+    // Summary Page
+    doc.addPage();
+    doc.fontSize(20).font('Helvetica-Bold')
+       .fillColor('#2d3748')
+       .text('SUMMARY STATISTICS', { align: 'center' });
+    
+    doc.moveDown(2);
+    
+    // Calculate statistics
+    const zones = [...new Set(members.map(m => m.zone))].length;
+    const parishes = [...new Set(members.map(m => m.parish))].length;
+    const parts = members.reduce((acc, m) => {
+      acc[m.part] = (acc[m.part] || 0) + 1;
+      return acc;
+    }, {});
+    
+    const currentYear = new Date().getFullYear();
+    const currentYearMembers = members.filter(m => m.joinYear == currentYear).length;
+    
+    doc.fontSize(14).font('Helvetica-Bold').fillColor('#4a5568');
+    doc.text('Overall Statistics:');
+    doc.moveDown(0.5);
+    
+    doc.fontSize(12).font('Helvetica').fillColor('#2d3748');
+    doc.text(`• Total Members: ${members.length}`);
+    doc.text(`• Zones: ${zones}`);
+    doc.text(`• Parishes: ${parishes}`);
+    doc.text(`• New Members This Year (${currentYear}): ${currentYearMembers}`);
+    
+    doc.moveDown();
+    doc.fontSize(14).font('Helvetica-Bold').fillColor('#4a5568');
+    doc.text('Voice Part Distribution:');
+    doc.moveDown(0.5);
+    
+    doc.fontSize(12).font('Helvetica').fillColor('#2d3748');
+    Object.entries(parts).forEach(([part, count]) => {
+      doc.text(`• ${part}: ${count} members`);
     });
     
     doc.end();
-    
   } catch (error) {
+    console.error('Error generating PDF:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// NEW: Generate CSV export
+// Helper function to add member to PDF
+async function addMemberToPDF(doc, member, serialNumber) {
+  const startY = doc.y;
+  
+  // Serial Number
+  doc.fontSize(16).font('Helvetica-Bold')
+     .fillColor('#667eea')
+     .text(`${serialNumber}.`, 50, startY);
+  
+  // Photo
+  const photoPath = path.join(__dirname, 'uploads', member.photo);
+  const hasPhoto = member.photo && fs.existsSync(photoPath);
+  
+  if (hasPhoto) {
+    try {
+      doc.image(photoPath, 80, startY - 5, { 
+        width: 80, 
+        height: 80,
+        fit: [80, 80],
+        align: 'left'
+      });
+    } catch (error) {
+      console.warn(`Could not load image for ${member.fullName}:`, error.message);
+      drawPlaceholderPhoto(doc, 80, startY - 5, member.fullName);
+    }
+  } else {
+    drawPlaceholderPhoto(doc, 80, startY - 5, member.fullName);
+  }
+  
+  // Member Details
+  const detailsStartX = 180;
+  let currentY = startY;
+  
+  // Name
+  doc.fontSize(14).font('Helvetica-Bold')
+     .fillColor('#2d3748')
+     .text(member.fullName, detailsStartX, currentY);
+  
+  currentY += 20;
+  
+  // Basic Info
+  doc.fontSize(10).font('Helvetica')
+     .fillColor('#4a5568');
+  
+  doc.text(`Phone: ${member.phoneNo}`, detailsStartX, currentY);
+  doc.text(`Gender: ${member.gender}`, detailsStartX + 200, currentY);
+  currentY += 15;
+  
+  doc.text(`Zone: ${member.zone}`, detailsStartX, currentY);
+  doc.text(`Area: ${member.area}`, detailsStartX + 200, currentY);
+  currentY += 15;
+  
+  doc.text(`Parish: ${member.parish}`, detailsStartX, currentY, { width: 300 });
+  currentY += 15;
+  
+  doc.text(`Voice Part: ${member.part}`, detailsStartX, currentY);
+  doc.text(`Year Joined: ${member.joinYear}`, detailsStartX + 200, currentY);
+  currentY += 15;
+  
+  // Additional details
+  if (member.occupation) {
+    doc.text(`Occupation: ${member.occupation}`, detailsStartX, currentY);
+    currentY += 15;
+  }
+  
+  if (member.stateOfOrigin || member.homeTown) {
+    const origin = [member.stateOfOrigin, member.homeTown].filter(Boolean).join(' - ');
+    doc.text(`Origin: ${origin}`, detailsStartX, currentY);
+    currentY += 15;
+  }
+  
+  // Positions and Instruments
+  if (member.position && member.position.length > 0) {
+    doc.text(`Positions: ${member.position.join(', ')}`, detailsStartX, currentY);
+    currentY += 15;
+  }
+  
+  if (member.instruments && member.instruments.length > 0) {
+    doc.text(`Instruments: ${member.instruments.join(', ')}`, detailsStartX, currentY);
+    currentY += 15;
+  }
+  
+  // Address
+  if (member.residentialAddress) {
+    doc.text(`Address: ${member.residentialAddress}`, detailsStartX, currentY, { 
+      width: 300,
+      ellipsis: true 
+    });
+    currentY += 20;
+  }
+  
+  // Set new Y position for next content
+  doc.y = Math.max(currentY, startY + 85);
+}
+
+// Helper function to draw placeholder photo
+function drawPlaceholderPhoto(doc, x, y, name) {
+  doc.rect(x, y, 80, 80)
+     .fillColor('#f7fafc')
+     .fill();
+  
+  doc.rect(x, y, 80, 80)
+     .strokeColor('#e2e8f0')
+     .lineWidth(2)
+     .stroke();
+  
+  doc.fontSize(8).font('Helvetica')
+     .fillColor('#a0aec0')
+     .text('No Photo', x + 20, y + 35);
+  
+  const initials = name.split(' ').map(n => n[0]).join('').toUpperCase();
+  doc.fontSize(12).font('Helvetica-Bold')
+     .fillColor('#667eea')
+     .text(initials, x + 35, y + 50);
+}
+
+// Export to CSV
 app.get('/api/members/export/csv', async (req, res) => {
   try {
     const members = await Member.find().sort({ fullName: 1 });
     
-    // CSV headers
-    const headers = [
-      'Full Name',
-      'Phone Number',
-      'Zone',
-      'Area',
-      'Parish',
-      'Voice Part',
-      'Year Joined',
-      'Gender',
-      'Marital Status',
-      'Occupation',
-      'State of Origin',
-      'Home Town',
-      'Positions',
-      'Instruments',
-      'Residential Address',
-      'Parish Address'
-    ];
+    const csvData = members.map(member => ({
+      serial: members.indexOf(member) + 1,
+      name: member.fullName,
+      phone: member.phoneNo,
+      zone: member.zone,
+      area: member.area,
+      parish: member.parish,
+      part: member.part,
+      joinYear: member.joinYear,
+      gender: member.gender,
+      status: member.status,
+      occupation: member.occupation,
+      stateOfOrigin: member.stateOfOrigin,
+      homeTown: member.homeTown,
+      positions: member.position ? member.position.join('; ') : '',
+      instruments: member.instruments ? member.instruments.join('; ') : '',
+      residentialAddress: member.residentialAddress,
+      parishAddress: member.parishAddress,
+      hasPhoto: member.photo ? 'Yes' : 'No'
+    }));
     
-    let csvContent = headers.join(',') + '\n';
-    
-    members.forEach(member => {
-      const row = [
-        `"${member.fullName}"`,
-        `"${member.phoneNo}"`,
-        `"${member.zone}"`,
-        `"${member.area}"`,
-        `"${member.parish}"`,
-        `"${member.part}"`,
-        `"${member.joinYear}"`,
-        `"${member.gender}"`,
-        `"${member.status}"`,
-        `"${member.occupation}"`,
-        `"${member.stateOfOrigin}"`,
-        `"${member.homeTown}"`,
-        `"${(member.position || []).join('; ')}"`,
-        `"${(member.instruments || []).join('; ')}"`,
-        `"${member.residentialAddress}"`,
-        `"${member.parishAddress}"`
-      ];
-      
-      csvContent += row.join(',') + '\n';
+    const csvStringifier = csv({
+      header: [
+        { id: 'serial', title: 'S/N' },
+        { id: 'name', title: 'Full Name' },
+        { id: 'phone', title: 'Phone Number' },
+        { id: 'zone', title: 'Zone' },
+        { id: 'area', title: 'Area' },
+        { id: 'parish', title: 'Parish' },
+        { id: 'part', title: 'Voice Part' },
+        { id: 'joinYear', title: 'Year Joined' },
+        { id: 'gender', title: 'Gender' },
+        { id: 'status', title: 'Marital Status' },
+        { id: 'occupation', title: 'Occupation' },
+        { id: 'stateOfOrigin', title: 'State of Origin' },
+        { id: 'homeTown', title: 'Home Town' },
+        { id: 'positions', title: 'Positions' },
+        { id: 'instruments', title: 'Instruments' },
+        { id: 'residentialAddress', title: 'Residential Address' },
+        { id: 'parishAddress', title: 'Parish Address' },
+        { id: 'hasPhoto', title: 'Photo Available' }
+      ]
     });
+    
+    const csvString = csvStringifier.getHeaderString() + csvStringifier.stringifyRecords(csvData);
     
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=choir-members.csv');
-    res.send(csvContent);
+    res.setHeader('Content-Disposition', 'attachment; filename=choir-members-complete.csv');
+    res.send(csvString);
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// File serving with error handling
+app.get('/uploads/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filepath = path.join(__dirname, 'uploads', filename);
+  
+  if (fs.existsSync(filepath)) {
+    res.sendFile(filepath);
+  } else {
+    res.status(404).json({ success: false, message: 'File not found' });
+  }
+});
+
+// File cleanup utility
+function cleanupOrphanedFiles() {
+  const uploadsDir = path.join(__dirname, 'uploads');
+  
+  if (!fs.existsSync(uploadsDir)) {
+    return;
+  }
+  
+  fs.readdir(uploadsDir, async (err, files) => {
+    if (err) {
+      console.error('Error reading uploads directory:', err);
+      return;
+    }
     
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
+    try {
+      const members = await Member.find({}, 'photo');
+      const usedFilenames = members.map(member => member.photo).filter(Boolean);
+      
+      files.forEach(file => {
+        if (!usedFilenames.includes(file)) {
+          const filePath = path.join(uploadsDir, file);
+          fs.unlink(filePath, (unlinkErr) => {
+            if (unlinkErr) {
+              console.error('Error deleting orphaned file:', unlinkErr);
+            } else {
+              console.log('🗑️ Deleted orphaned file:', file);
+            }
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Error during file cleanup:', error);
+    }
+  });
+}
 
-
-// Get all members with pagination
-app.get('/api/members', async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-
-    const members = await Member.find()
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    const total = await Member.countDocuments();
-    const totalPages = Math.ceil(total / limit);
-
-    res.json({
-      members,
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalMembers: total,
-        hasNext: page < totalPages,
-        hasPrev: page > 1
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// Search members
-app.get('/api/members/search', async (req, res) => {
-  try {
-    const searchTerm = req.query.term;
-    const members = await Member.find({
-      $or: [
-        { fullName: { $regex: searchTerm, $options: 'i' } },
-        { phoneNo: { $regex: searchTerm, $options: 'i' } },
-        { parish: { $regex: searchTerm, $options: 'i' } },
-        { zone: { $regex: searchTerm, $options: 'i' } },
-        { area: { $regex: searchTerm, $options: 'i' } }
-      ]
-    }).limit(50);
-
-    res.json(members);
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// Get all unique zones for filter
-app.get('/api/zones', async (req, res) => {
-  try {
-    const zones = await Member.distinct('zone');
-    res.json(zones.filter(zone => zone)); // Remove null/empty values
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-// Test route to check database connection and existing data
-app.get('/api/test', async (req, res) => {
-  try {
-    const count = await Member.countDocuments();
-    const members = await Member.find().limit(5);
-    
-    res.json({
-      success: true,
-      message: 'Database connection successful',
-      totalMembers: count,
-      sampleMembers: members
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Database error: ' + error.message
-    });
-  }
-});
-
-// Create uploads directory if it doesn't exist
-if (!fs.existsSync('uploads')) {
-  fs.mkdirSync('uploads');
+// Create uploads directory on startup
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
   console.log('📁 Created uploads directory');
 }
 
+// Run cleanup on startup
+setTimeout(cleanupOrphanedFiles, 5000);
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📁 Uploads directory: ${path.resolve(uploadsDir)}`);
   console.log(`📊 Visit http://localhost:${PORT}/admin to view the admin dashboard`);
 });
